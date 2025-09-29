@@ -1,0 +1,124 @@
+/////////////////////////////////////////////////////////
+-layer on terus 
+-Cara 1: Disable screen blanking lewat raspi-config
+
+-Jalankan:
+
+sudo raspi-config
+
+
+-Pilih:
+
+Display Options → Screen Blanking → Disable
+
+Reboot.
+
+////////////////////////////////////////////////////////////////
+-ubah display langsung 
+
+sudo raspi-config
+
++System Options/display option
+  → S5 Boot / Auto Login
+    → Pilih: S6 Auto Login
+      → Pilih: B2 Desktop GUI (untuk auto login ke desktop)
+
++Advance options
+pilih - A7 Wayland
+pilih - X11
+finish
+
+//////////////////////////////////////////////////////////////////
+
+🔧 Langkah Instalasi PySide6 + QtWebEngine di Raspberry Pi 5
+- Pastikan sistem update:
+
+sudo apt update && sudo apt upgrade -y
+
+
+- Install PySide6 + QtWebEngine:
+
+sudo apt install python3-pyside6.qtwebengine -y
+
+- Cek instalasi:
+
+python3 -c "from PySide6.QtWebEngineWidgets import QWebEngineView; print('✅ PySide6 WebEngine OK')"
+
+🔧 Solusi supaya PySide6 + QtWebEngine bisa dipakai di Raspberry Pi 5
+- Opsi 1: Install via pip (lebih simpel)
+
+- Coba langsung install dari PyPI:
+
+pip3 install PySide6 PySide6-Addons PySide6-Essentials
+
+- Lalu cek apakah QtWebEngine ada:
+
+python3 -c "from PySide6.QtWebEngineWidgets import QWebEngineView; print('✅ PySide6 WebEngine OK')"
+
+- Cara 2: Pakai pip dengan --break-system-packages (langsung di system Python)
+
+- Kalau kamu mau tetap install global (lebih praktis tapi agak “nakal” 😅):
+
+pip3 install PySide6 PySide6-Addons PySide6-Essentials --break-system-packages
+
+- kita pasang libwebp6 supaya error libwebp.so.6 hilang.
+- Di Raspberry Pi OS Bookworm, library yang dipakai biasanya versi libwebp7, jadi kita perlu paksa install versi libwebp6 dari repo Debian lama.
+
+- Coba jalankan perintah ini:
+
+sudo apt update
+sudo apt install libwebp6
+
+
+- Kalau muncul error Unable to locate package libwebp6, kita bisa download manual .deb dari repo Debian lama (Bullseye) lalu install. Misalnya:
+
+wget http://ftp.debian.org/debian/pool/main/libw/libwebp/libwebp6_0.6.1-2.1+deb10u1_armhf.deb
+sudo apt install ./libwebp6_0.6.1-2.1+deb10u1_armhf.deb
+
+1. Cari paket libwebp7
+
+- Coba install dulu library webp terbaru:
+
+sudo apt update
+sudo apt install libwebp7
+
+
+- Setelah itu cek apakah file libwebp.so.7 muncul:
+
+ls /usr/lib/*/libwebp.so.7
+
+🔹 2. Buat symlink untuk libwebp.so.6
+
+- Kalau libwebp.so.7 sudah ada, tinggal bikin symlink:
+
+sudo ln -s /usr/lib/arm-linux-gnueabihf/libwebp.so.7 /usr/lib/arm-linux-gnueabihf/libwebp.so.6
+
+👉 kalau 64-bit (aarch64), path-nya biasanya:
+
+sudo ln -s /usr/lib/aarch64-linux-gnu/libwebp.so.7 /usr/lib/aarch64-linux-gnu/libwebp.so.6
+
+- Di Raspberry Pi OS Bookworm, yang tersedia biasanya libtiff6, bukan libtiff5. Jadi kita perlu:
+
+🔹 1. Install library TIFF terbaru
+sudo apt update
+sudo apt install libtiff6
+
+🔹 2. Buat symlink ke libtiff.so.5
+
+- Kalau sudah terinstall, cek lokasinya:
+
+ls /usr/lib/aarch64-linux-gnu/libtiff.so.*
+
+
+- Biasanya ketemu libtiff.so.6. Maka kita bikin symlink biar PySide6 “percaya” ada libtiff.so.5:
+
+sudo ln -s /usr/lib/aarch64-linux-gnu/libtiff.so.6 /usr/lib/aarch64-linux-gnu/libtiff.so.5
+
+
+/////////////////////////////////LIBARARY LAIN/////////////////////////////
+
+pip install pyserial
+
+pip install pyautogui
+
+

@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""
+kiosk_rfid_typing.py
+
+Fungsi:
+- Buka Chromium di mode kiosk ke URL yang diinginkan.
+- Baca data dari ESP32 melalui serial.
+- Otomatis fokuskan jendela Chromium dan ketik string yang diterima ke textbox yang aktif,
+  lalu tekan Enter (opsional).
+
+Catatan:
+- Butuh `pyserial` (pip install pyserial) dan `xdotool` (sudo apt install xdotool).
+- Untuk Wayland, xdotool mungkin tidak bekerja; butuh pendekatan berbeda.
+"""
+
+import subprocess
+import time
+import shlex
+import sys
+import serial
+import threading
+
+# Konfigurasi
+URL = "https://pesatkantin.com/order-self"
+SERIAL_PORT = "/dev/ttyACM0"
+BAUD = 115200
+
+# Opsi: apakah ingin otomatis tekan Enter setelah mengetik UID
+PRESS_ENTER_AFTER_TYPE = True
+
+def open_chromium_kiosk(url):
+    try:
+        # Jika sudah ada instance chromium sebelumnya, kita bisa membuka baru atau mengabaikan
+        subprocess.Popen(["chromium-browser", "--kiosk", url])
+        print("✅ Chromium dibuka dalam mode kiosk.")
+    except FileNotFoundError:
+        print("❌ chromium-browser tidak ditemukan. Pastikan Chromium terpasang dan nama biner benar.")
+        sys.exit(1)
+    except Exception as e:
+        print("❌ Gagal buka Chromium:", e)
+        sys.exit(1)
+
+def focus_chromium_window():
+    """
+    Cari jendela chromium dan fokuskan. Menggunakan xdotool search --onlyvisible --class chromium
+    Jika gagal, kita fallback ke fokuskan window aktif (xdotool windowactivate).
+    """
+    try:
+        # cari window chromium
+        proc = subprocess.run(["xdotool", "search", "--onlyvisible", "--class", "chromium"],
+                              capture_output=True, text=True)
+        out = proc.stdout.strip()
+        if out:
+            # Ambil window id pertama
+            win_id = out.splitlines()[0].strip()
+            subprocess.run(["xdotool", "windowactivate", "--sync", win_id])
+            time.sleep(0.05)  # biar pasti fokus
+            return True
+        else:
+            # fallback: aktifkan window terakhir
+            subprocess.run(["xdotool", "getactivewindow"])
+            return False
+    except Exception as e:
+        print("⚠️ Gagal fokus Chromium lewat xdotool:", e)
+        return False
+
+def type_text_via_ydotool(text):
+    try:
+        subprocess.run(["sudo", "ydotool", "type", text])
+        if PRESS_ENTER_AFTER_TYPE:
+            subprocess.run(["sudo", "ydotool", "key", "28"])  # 28 = Enter
+    except Exception as e:
+        print("⚠️ Gagal mengetik via ydotool:", e)
+
+
+def read_serial_and_type(port, baud):
+    """
+    Buka serial, baca baris demi baris. Saat menerima baris non-kosong,
+    kita bersihkan dan kirim ke xdotool.
+    """
+    try:
+        ser = serial.Serial(port, baud, timeout=1)
+    except serial.SerialException as e:
+        print("❌ Gagal buka port serial:", e)
+        sys.exit(1)
+
+    print(f"🔌 Terhubung ke {port} @ {baud} baud. Menunggu data RFID...")
+    last_sent = None
+    last_time = 0
+
+    try:
+        while True:
+            try:
+                line = ser.readline().decode(errors="ignore").strip()
+            except Exception as e:
+                # bila decode/read error
+                line = ""
+            if line:
+                # Bersihkan data: contoh jika ESP32 mengirim "UID: ABC123" -> ambil bagian UID
+                # Kamu bisa sesuaikan ekstraksi di sini.
+                cleaned = line
+                # jika ada prefix seperti UID:, hapus
+                if ":" in cleaned:
+                    # ambil setelah ":"
+                    cleaned = cleaned.split(":", 1)[1].strip()
+
+                # Debounce: hindari mengirim berulang kali pada UID yang sama dalam 2 detik
+                now = time.time()
+                if cleaned == last_sent and (now - last_time) < 2.0:
+                    # skip duplicate cepat
+                    continue
+
+                print("📨 Diterima dari serial:", repr(cleaned))
+                type_text_via_ydotool(cleaned)
+                last_sent = cleaned
+                last_time = now
+            else:
+                time.sleep(0.05)
+    except KeyboardInterrupt:
+        print("\n✋ Dihentikan oleh user.")
+    finally:
+        ser.close()
+
+def main():
+    # 1) buka chromium kiosk
+    open_chromium_kiosk(URL)
+
+    # beri waktu Chromium untuk buka dan siap, lalu fokuskan
+    time.sleep(2.0)
+    focus_chromium_window()
+
+    # 2) jalankan loop baca serial
+    read_serial_and_type(SERIAL_PORT, BAUD)
+
+if __name__ == "__main__":
+    main()

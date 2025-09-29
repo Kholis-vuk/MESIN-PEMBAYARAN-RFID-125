@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""
+kiosk_rfid_html_keyboard.py
+
+- Chromium kiosk fullscreen
+- Baca RFID dari ESP32
+- Kirim UID ke halaman HTML input via query string
+- Keyboard virtual HTML muncul di bawah textbox
+"""
+
+import subprocess
+import threading
+import serial
+import time
+import webbrowser
+import http.server
+import socketserver
+import urllib.parse
+
+# ===================== Konfigurasi =====================
+SERIAL_PORT = "/dev/ttyACM0"
+BAUD = 115200
+PORT = 8000  # port untuk serve HTML
+URL = f"http://localhost:{PORT}/index.html"
+
+# ===================== HTML halaman dengan keyboard =====================
+HTML_CONTENT = """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>RFID Kiosk</title>
+<style>
+body { margin:0; font-family: sans-serif; }
+#inputbox { width: 100%; font-size: 48px; height: 80px; }
+#keyboard { position: fixed; bottom:0; width: 100%; height: 200px; background: #ccc; display: flex; flex-wrap: wrap; }
+button { flex: 1 0 10%; font-size: 36px; margin:2px; }
+</style>
+</head>
+<body>
+<input id="inputbox" type="text" autofocus>
+<div id="keyboard">
+  <button onclick="press('1')">1</button>
+  <button onclick="press('2')">2</button>
+  <button onclick="press('3')">3</button>
+  <button onclick="press('4')">4</button>
+  <button onclick="press('5')">5</button>
+  <button onclick="press('6')">6</button>
+  <button onclick="press('7')">7</button>
+  <button onclick="press('8')">8</button>
+  <button onclick="press('9')">9</button>
+  <button onclick="press('0')">0</button>
+  <button onclick="press('Enter')">Enter</button>
+</div>
+<script>
+const input = document.getElementById("inputbox");
+function press(key){
+    if(key==="Enter"){ input.value += "\\n"; }
+    else{ input.value += key; }
+}
+
+// Fungsi untuk menerima UID dari Python (via query param)
+function getQueryParam(name) {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(name);
+}
+function setUID(uid){
+  input.value += uid;
+}
+</script>
+</body>
+</html>
+"""
+
+# ===================== HTTP Server =====================
+class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path.startswith("/index.html"):
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(HTML_CONTENT.encode("utf-8"))
+        else:
+            self.send_error(404)
+
+def run_server():
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        print(f"🌐 Server HTML berjalan di http://localhost:{PORT}")
+        httpd.serve_forever()
+
+# ===================== Serial RFID =====================
+def read_serial(port, baud):
+    try:
+        ser = serial.Serial(port, baud, timeout=1)
+    except serial.SerialException as e:
+        print("❌ Gagal buka port serial:", e)
+        return
+
+    while True:
+        try:
+            line = ser.readline().decode(errors="ignore").strip()
+        except:
+            line = ""
+        if line:
+            cleaned = line.split(":",1)[-1].strip() if ":" in line else line
+            print("📨 Diterima UID:", cleaned)
+            # Kirim ke Chromium via URL query (simple reload)
+            subprocess.run(["chromium-browser", "--kiosk", f"http://localhost:{PORT}/index.html?uid={cleaned}"])
+        else:
+            time.sleep(0.05)
+
+# ===================== Main =====================
+if __name__ == "__main__":
+    # 1) Jalankan server HTML di background
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+    time.sleep(1)
+
+    # 2) Buka Chromium fullscreen ke halaman kiosk
+    subprocess.Popen(["chromium-browser", "--kiosk", URL])
+    time.sleep(2)
+
+    # 3) Jalankan baca serial
+    read_serial(SERIAL_PORT, BAUD)

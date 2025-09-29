@@ -1,0 +1,55 @@
+. Pastikan script bisa dijalankan manual
+
+cd /home/itjlm/Documents/RFID
+python3 rfid_kantin_keyboard.py
+
+2. Tambahkan permission eksekusi (opsional)
+chmod +x /home/itjlm/Documents/RFID/rfid_kantin_keyboard.py
+
+3. Buat systemd service
+
+sudo nano /etc/systemd/system/rfid_kantin.service
+
+[Unit]
+Description=RFID Kantin dengan Keyboard Virtual
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/itjlm/Documents/RFID/rfid_kantin_keyboard.py
+WorkingDirectory=/home/itjlm/Documents/RFID
+StandardOutput=journal
+StandardError=journal
+Restart=always
+User=itjlm
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/itjlm/.Xauthority
+
+[Install]
+WantedBy=graphical.target
+
+----
+sudo systemctl daemon-reload
+sudo systemctl enable rfid_kantin.service
+sudo systemctl start rfid_kantin.service
+
+
+////////////////////hapus service //////////////////////////////////////
+
+1. Stop service kalau masih aktif
+sudo systemctl stop rfid-kantin.service
+
+2. Nonaktifkan dari autostart
+sudo systemctl disable rfid-kantin.service
+
+3. Hapus file service
+sudo rm /etc/systemd/system/rfid-kantin.service
+
+4. Reload systemd biar daftar service bersih
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
+
+5. Cek
+systemctl list-unit-files | grep rfid
+
+

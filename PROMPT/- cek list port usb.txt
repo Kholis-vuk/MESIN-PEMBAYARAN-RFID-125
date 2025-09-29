@@ -1,0 +1,29 @@
+- cek list port usb
+
+ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+
+- baca jenis driver 
+
+dmesg | grep tty
+
+- lihat group 
+
+ls -l /dev/ttyUSB0
+
+Akan terlihat group-nya misalnya dialout.
+
+sudo usermod -a -G dialout $USER
+
+- cek id karena port suka ganti2
+
+ls -l /dev/serial/by-id/
+
+total 0
+lrwxrwxrwx 1 root root 13 Sep  3 10:59 usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0 -> ../../ttyUSB0
+
+copy ini 
+usb-Silicon_Labs_CP2102_USB_to_UART_Bridge_Controller_0001-if00-port0
+
+tambah ini didepan senelum data di atas 
+/dev/serial/by-id/
+

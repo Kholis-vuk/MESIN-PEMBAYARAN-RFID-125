@@ -1,0 +1,43 @@
+service user
+
+//download nmlci
+sudo apt update
+sudo apt install network-manager -y
+
+
+///kalua edit
+nano ~/.config/systemd/user/rfid_kantin.service
+
+
+1. Stop & disable service lama (system-wide)
+sudo systemctl stop rfid_kantin
+sudo systemctl disable rfid_kantin
+sudo rm /etc/systemd/system/rfid_kantin.service
+sudo systemctl daemon-reload
+
+2. Buat service baru di level user
+mkdir -p ~/.config/systemd/user
+nano ~/.config/systemd/user/rfid_kantin.service
+
+
+Isi dengan:
+
+[Unit]
+Description=RFID Kantin dengan Keyboard Virtual
+After=graphical.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/itjlm/Documents/RFID/rfid_kantin_keyboard.py
+WorkingDirectory=/home/itjlm/Documents/RFID
+StandardOutput=journal
+StandardError=journal
+Restart=always
+
+[Install]
+WantedBy=default.target
+
+3. Reload & aktifkan user service
+systemctl --user daemon-reload
+systemctl --user enable rfid_kantin.service
+systemctl --user start rfid_kantin.service
